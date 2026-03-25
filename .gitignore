@@ -1,0 +1,6 @@
+/target
+/llm
+.env
+Cargo.lock
+cookies.txt
+nohup.out
