@@ -8,3 +8,6 @@ rustflags = [
     "-C", "link-arg=-Wl,-rpath,/workspaces/JadeVoice/voicevox_core/c_api/lib",
     "-C", "link-arg=-Wl,-rpath,/workspaces/JadeVoice/voicevox_core/onnxruntime/lib",
 ]
+
+[build]
+rustc-wrapper = "sccache"
