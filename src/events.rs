@@ -7,7 +7,7 @@ use songbird::{
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::services::music::clear_queue;
+use crate::services::clear_queue;
 
 /// join / auto-join 直後に一度だけ呼び出し、CoreEvent ハンドラを登録する。
 pub async fn register(

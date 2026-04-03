@@ -1,18 +1,19 @@
 use poise::serenity_prelude as serenity;
 use reqwest::Client;
-
 use songbird::SerenityInit;
+use dashmap::DashMap;
+use dotenv::dotenv;
+
+use voicevox_api::VoicevoxApi;
 
 mod commands;
 mod services;
 mod events;
-use commands::music::music;
-
-use dotenv::dotenv;
+use commands::music;
 
 pub struct Data {
-    pub http_client: Client,
-    pub ytdlp_cookies: String,
+    pub voicevox_api: VoicevoxApi,
+    pub guild_styles: DashMap<GuildId, u16>,
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -24,8 +25,12 @@ async fn main() -> Result<(), Error> {
 
     let token = std::env::var("DISCORD_TOKEN")
         .expect("Missing DISCORD_TOKEN");
-    let cookies = std::env::var("YTDLP_COOKIES")
-        .expect("YTDLP_COOKIES environment variable not set");
+    let dictionary = std::env::var("VOICEVOX_DICTIONARY")
+        .expect("Missing VOICEVOX_DICTIONARY");
+    let runtime = std::env::var("VOICEVOX_ONNXRUNTIME")
+        .expect("Missing VOICEVOX_ONNXRUNTIME");
+
+    let mut api = VoicevoxApi::new(dictionary, runtime)
 
     let intents = serenity::GatewayIntents::non_privileged()
         | serenity::GatewayIntents::GUILD_VOICE_STATES;
@@ -33,7 +38,7 @@ async fn main() -> Result<(), Error> {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                music(),
+                voice(),
             ],
             ..Default::default()
         })
@@ -44,8 +49,7 @@ async fn main() -> Result<(), Error> {
                     &framework.options().commands
                 ).await?;
                 Ok(Data {
-                    http_client: Client::new(),
-                    ytdlp_cookies: cookies,
+                    voicevox_api: api,
                 })
             })
         })

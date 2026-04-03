@@ -8,9 +8,9 @@ async-trait = "0.1"
 serenity = { version = "0.12", default-features = false, features = [
     "client",
     "gateway",
-    "rustls_backend",  # TLS backend（native_tlsより軽量）
+    "rustls_backend",
     "model",
-    "voice",           # Songbird連携に必要
+    "voice",
 ] }
 poise = "0.6.1"
 dotenv = "0.15.0"
@@ -20,12 +20,13 @@ symphonia = { version = "0.5", features = ["aac", "mp3", "isomp4", "ogg", "vorbi
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.8.0"
+voicevox_api = { path="voicevox_api" }
 
 [profile.release]
-opt-level = 3         # 最高レベルの速度最適化
-lto = "fat"           # 最大限のリンク時最適化を有効化
-codegen-units = 1     # コード生成ユニットを減らし、最適化を強化
-panic = "abort"       # panic 時に 'unwind' ではなく 'abort' を使用
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
 
 # [profile.release]
 # opt-level = 1
