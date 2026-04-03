@@ -1,56 +1,44 @@
-# JadeMusic
+# JadeVoice
 
-Discord 向け音楽再生 Bot。YouTube などの URL をボイスチャンネルで再生できます。
+Discord 向けテキスト読み上げ（TTS）Bot。[Voicevox](https://voicevox.hiroshiba.jp/) を使ってテキストチャンネルのメッセージをボイスチャンネルで読み上げます。
+
+## 動作概要
+
+1. `/voice join` でボイスチャンネルに参加
+2. Bot が参加しているボイスチャンネルと **同名のテキストチャンネル** に投稿されたメッセージを Voicevox で合成・読み上げ
+3. `/voice leave` で退出（読み上げ停止）
+
+---
 
 ## 必要な環境
 
-- **ffmpeg** — 音声デコード・変換に使用
-- **yt-dlp** — 動画サイトからの音声取得に使用
-- **deno** — yt-dlp の JavaScript ランタイムとして使用
+- **Rust** — ビルドに必要（`rustup` 推奨）
+- **Voicevox Core** — `voicevox_core/` ディレクトリに同梱（別途配置が必要な場合は [公式リリース](https://github.com/VOICEVOX/voicevox_core/releases) を参照）
+
+外部コマンド（ffmpeg・yt-dlp・deno など）は**不要**です。
 
 ---
 
 ## 環境構築手順
 
-### 1. ffmpeg
+### 1. Rust のインストール
 
 ```bash
-# Ubuntu / Debian
-sudo apt update && sudo apt install -y ffmpeg
-
-# macOS (Homebrew)
-brew install ffmpeg
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustc --version
 ```
 
-### 2. yt-dlp
+### 2. Voicevox Core の配置
 
-apt などのパッケージマネージャ版は古い場合があるため、pip でインストールしてください。
+リポジトリには `voicevox_core/` ディレクトリに以下が含まれている必要があります。
 
-```bash
-pip install -U yt-dlp
 ```
-
-> **注意**: apt でインストール済みの場合、古いバージョンが PATH に残ることがあります。  
-> `which yt-dlp` でパスを確認し、必要に応じてシンボリックリンクを更新してください。
->
-> ```bash
-> # pip インストール先を確認して上書きする例
-> sudo ln -sf "$(python3 -c 'import yt_dlp, os; print(os.path.dirname(yt_dlp.__file__))')"/../../../bin/yt-dlp /usr/local/bin/yt-dlp
-> ```
-
-バージョンの確認：
-
-```bash
-yt-dlp --version   # 2026.03.17 以降推奨
-```
-
-### 3. deno
-
-npm 経由でインストールします（Node.js が必要）。
-
-```bash
-npm install -g deno
-deno --version
+voicevox_core/
+  c_api/lib/          # libvoicevox_core.so など
+  dict/               # open_jtalk_dic_utf_8-x.xx/
+  models/vvms/        # *.vvm 音声モデルファイル
+  onnxruntime/lib/    # libonnxruntime.so など
 ```
 
 ---
@@ -61,20 +49,22 @@ deno --version
 
 ```env
 DISCORD_TOKEN=your_discord_bot_token
-YTDLP_COOKIES=/path/to/cookies.txt
+VOICEVOX_DICTIONARY=voicevox_core/dict/open_jtalk_dic_utf_8-1.11
+VOICEVOX_ONNXRUNTIME=voicevox_core/onnxruntime/lib/libonnxruntime.so.1.17.3
 ```
 
 | 変数名 | 説明 |
 |---|---|
 | `DISCORD_TOKEN` | Discord Developer Portal で取得した Bot トークン |
-| `YTDLP_COOKIES` | YouTube 認証用 cookies.txt のパス（年齢制限コンテンツなどに必要） |
+| `VOICEVOX_DICTIONARY` | Open JTalk 辞書ディレクトリのパス |
+| `VOICEVOX_ONNXRUNTIME` | ONNX Runtime 共有ライブラリのパス |
 
 ### Discord Bot の設定
 
-[Discord Developer Portal](https://discord.com/developers/applications) の Bot 設定で以下を確認してください。
+[Discord Developer Portal](https://discord.com/developers/applications) の Bot 設定で以下を有効化してください。
 
 - **Server Members Intent** — 有効化
-- **Message Content Intent** — 不要（slash command のみ使用）
+- **Message Content Intent** — **有効化**（メッセージ読み上げに必要）
 
 ---
 
@@ -97,10 +87,6 @@ cargo build --release --target x86_64-unknown-linux-musl
 
 | コマンド | 説明 |
 |---|---|
-| `/music play <url>` | URL を再生キューに追加（ボイスチャンネル未参加の場合は自動参加） |
-| `/music skip` | 再生中の曲をスキップ |
-| `/music list` | 再生キューの一覧を表示 |
-| `/music shuffle` | 再生キューをシャッフル（再生中の曲は除く） |
-| `/music delete <n>` | キューの n 番目の曲を削除 |
-| `/music join` | ボイスチャンネルに参加 |
-| `/music leave` | ボイスチャンネルから退出 |
+| `/voice join` | ボイスチャンネルに参加し、読み上げを開始する |
+| `/voice leave` | ボイスチャンネルから退出し、読み上げを停止する |
+| `/voice model <style_id>` | 読み上げに使用する Voicevox スタイル ID を変更する（Bot オーナーのみ） |
