@@ -3,8 +3,10 @@ use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crate::voicevox_core as core;
+use tokio::task;
 use zip::ZipArchive;
 
 pub type VoiceModelId = [u8; 16];
@@ -15,11 +17,21 @@ struct LoadedModel {
     path: String,
 }
 
-pub struct VoicevoxApi {
+struct VoicevoxApiInner {
     open_jtalk: *mut core::OpenJtalkRc,
     synthesizer: *mut core::VoicevoxSynthesizer,
     loaded_models: Vec<LoadedModel>,
     style_to_model_path: HashMap<u32, String>,
+}
+
+// SAFETY: Access to the FFI pointers is serialized through Mutex in VoicevoxApi.
+unsafe impl Send for VoicevoxApiInner {}
+// SAFETY: Shared references never access inner state without first taking the Mutex.
+unsafe impl Sync for VoicevoxApiInner {}
+
+#[derive(Clone)]
+pub struct VoicevoxApi {
+    inner: Arc<Mutex<VoicevoxApiInner>>,
 }
 
 impl VoicevoxApi {
@@ -54,15 +66,96 @@ impl VoicevoxApi {
             }
 
             Ok(Self {
+                inner: Arc::new(Mutex::new(VoicevoxApiInner {
                 open_jtalk,
                 synthesizer,
                 loaded_models: Vec::new(),
                 style_to_model_path: HashMap::new(),
+                })),
             })
         }
     }
 
-    pub fn load_model(&mut self, model_path: &str) -> Result<VoiceModelId, core::VoicevoxError> {
+    pub async fn load_model(&self, model_path: &str) -> Result<VoiceModelId, core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        let model_path = model_path.to_owned();
+        task::spawn_blocking(move || {
+            let mut guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            guard.load_model(&model_path)
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+
+    pub async fn register_models_from_dir(&self, model_dir: &str) -> Result<(), core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        let model_dir = model_dir.to_owned();
+        task::spawn_blocking(move || {
+            let mut guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            guard.register_models_from_dir(&model_dir)
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+
+    pub async fn unload_model(&self, model_id: VoiceModelId) -> Result<(), core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        task::spawn_blocking(move || {
+            let mut guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            guard.unload_model(&model_id)
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+
+    #[allow(dead_code)]
+    pub async fn is_model_loaded(&self, model_id: VoiceModelId) -> Result<bool, core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        task::spawn_blocking(move || {
+            let guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            Ok(guard.is_model_loaded(&model_id))
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+
+    #[allow(dead_code)]
+    pub async fn model_metas_json(&self, model_id: VoiceModelId) -> Result<String, core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        task::spawn_blocking(move || {
+            let guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            guard.model_metas_json(&model_id)
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+
+    pub async fn tts(&self, text: &str, style_id: u32) -> Result<Vec<u8>, core::VoicevoxError> {
+        let inner = Arc::clone(&self.inner);
+        let text = text.to_owned();
+        task::spawn_blocking(move || {
+            let mut guard = inner
+                .lock()
+                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
+            guard.tts(&text, style_id)
+        })
+        .await
+        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
+    }
+}
+
+impl VoicevoxApiInner {
+    fn load_model(&mut self, model_path: &str) -> Result<VoiceModelId, core::VoicevoxError> {
         if let Some(loaded) = self.loaded_models.iter().find(|loaded| loaded.path == model_path) {
             return Ok(loaded.id);
         }
@@ -92,7 +185,7 @@ impl VoicevoxApi {
         }
     }
 
-    pub fn register_models_from_dir(&mut self, model_dir: &str) -> Result<(), core::VoicevoxError> {
+    fn register_models_from_dir(&mut self, model_dir: &str) -> Result<(), core::VoicevoxError> {
         let entries = fs::read_dir(model_dir)
             .map_err(|e| core::VoicevoxError::from_message(format!("failed to read model_dir: {e}")))?;
 
@@ -160,7 +253,7 @@ impl VoicevoxApi {
         Ok(())
     }
 
-    pub fn unload_model(&mut self, model_id: &VoiceModelId) -> Result<(), core::VoicevoxError> {
+    fn unload_model(&mut self, model_id: &VoiceModelId) -> Result<(), core::VoicevoxError> {
         let index = self
             .loaded_models
             .iter()
@@ -184,7 +277,7 @@ impl VoicevoxApi {
     }
 
     #[allow(dead_code)]
-    pub fn is_model_loaded(&self, model_id: &VoiceModelId) -> bool {
+    fn is_model_loaded(&self, model_id: &VoiceModelId) -> bool {
         // SAFETY: self.synthesizer is valid while self is alive; model_id points to 16-byte model ID.
         unsafe {
             core::voicevox_synthesizer_is_loaded_voice_model(self.synthesizer, model_id as *const VoiceModelId)
@@ -192,7 +285,7 @@ impl VoicevoxApi {
     }
 
     #[allow(dead_code)]
-    pub fn model_metas_json(&self, model_id: &VoiceModelId) -> Result<String, core::VoicevoxError> {
+    fn model_metas_json(&self, model_id: &VoiceModelId) -> Result<String, core::VoicevoxError> {
         let loaded = self
             .loaded_models
             .iter()
@@ -211,7 +304,7 @@ impl VoicevoxApi {
         }
     }
 
-    pub fn tts(&mut self, text: &str, style_id: u32) -> Result<Vec<u8>, core::VoicevoxError> {
+    fn tts(&mut self, text: &str, style_id: u32) -> Result<Vec<u8>, core::VoicevoxError> {
         self.ensure_model_for_style(style_id)?;
         let text = CString::new(text).map_err(|_| core::VoicevoxError::from_message("text contains NUL byte"))?;
 
@@ -241,7 +334,7 @@ impl VoicevoxApi {
     }
 }
 
-impl Drop for VoicevoxApi {
+impl Drop for VoicevoxApiInner {
     fn drop(&mut self) {
         // SAFETY: These pointers were obtained from matching constructors and are released once here.
         unsafe {

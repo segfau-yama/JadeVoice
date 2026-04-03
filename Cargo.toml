@@ -14,13 +14,14 @@ serenity = { version = "0.12", default-features = false, features = [
 ] }
 poise = "0.6.1"
 dotenv = "0.15.0"
-songbird = { git = "https://github.com/beerpsi-forks/songbird", branch = "davey", features = ["receive", "builtin-queue"] }
+songbird = { git = "https://github.com/beerpsi-forks/songbird", branch = "current", features = ["receive", "builtin-queue"] }
 reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls"] }
 symphonia = { version = "0.5", features = ["aac", "mp3", "isomp4", "ogg", "vorbis", "flac", "wav", "mkv"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.8.0"
 voicevox_api = { path="voicevox_api" }
+dashmap = "6.1.0"
 
 [profile.release]
 opt-level = 3

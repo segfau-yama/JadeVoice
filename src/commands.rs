@@ -1,10 +1,6 @@
 use crate::{Error, Context};
-use crate::services::{TrackData, format_duration, build_queue_embed, check_msg, get_handler_lock};
-use rand::seq::SliceRandom;
-use songbird::input::YoutubeDl;
+use crate::services::{check_msg};
 use songbird::tracks::Track;
-use std::sync::Arc;
-use std::io::Cursor;
 
 #[poise::command(
     slash_command,
@@ -16,7 +12,7 @@ pub async fn voice(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command, guild_only, rename = "join")]
-/// ボイスチャンネルに参加する。再生中の曲がある場合は続行する。
+/// ボイスチャンネルに参加する。再生中の音声がある場合は続行する。
 pub async fn _join(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
@@ -46,7 +42,7 @@ pub async fn _join(
 }
 
 #[poise::command(slash_command, guild_only)]
-/// ボイスチャンネルから退出する。再生中の曲がある場合は停止する。
+/// ボイスチャンネルから退出する。再生中の音声がある場合は停止する。
 pub async fn leave(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
@@ -76,6 +72,7 @@ pub async fn read(
 
     let guild_id = ctx.guild_id().unwrap();
     let voicevox_api = ctx.data().voicevox_api.clone();
+    let style_id = ctx.data().voicevox_styles.get(&guild_id).map(|s| *s).unwrap_or(3_u16);
 
     let manager = songbird::get(ctx.serenity_context())
         .await
@@ -104,22 +101,22 @@ pub async fn read(
 
     let mut handler = handler_lock.lock().await;
 
-    let src = voicevox_api.tts(sentence, 3).unwrap();
-    let mut input: Input = src.into();
+    let src = voicevox_api.tts(&sentence as &str, style_id as u32).await.unwrap();
+    let input: songbird::input::Input = src.into();
     let track = Track::new(input);
     let _ = handler.enqueue(track).await;
     Ok(())
 }
 
 
-#[poise::command(slash_command, owner_only)]
+#[poise::command(slash_command, owners_only)]
 /// Voicevoxモデルを変更する
 pub async fn model(
     ctx: Context<'_>,
     style_id: u16,
 ) -> Result<(), Error> {
-    let tracks = queue.current_queue();
-    let embed = build_queue_embed(&tracks);
-    check_msg(ctx.send(poise::CreateReply::default().embed(embed)).await);
+    let guild_id = ctx.guild_id().unwrap();
+    ctx.data().voicevox_styles.insert(guild_id, style_id);
+    check_msg(ctx.say(format!("スタイルIDを {} に変更しました", style_id)).await);
     Ok(())
 }

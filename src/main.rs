@@ -1,6 +1,6 @@
 use poise::serenity_prelude as serenity;
-use reqwest::Client;
 use songbird::SerenityInit;
+use serenity::model::id::GuildId;
 use dashmap::DashMap;
 use dotenv::dotenv;
 
@@ -9,11 +9,11 @@ use voicevox_api::VoicevoxApi;
 mod commands;
 mod services;
 mod events;
-use commands::music;
+use commands::voice;
 
 pub struct Data {
     pub voicevox_api: VoicevoxApi,
-    pub guild_styles: DashMap<GuildId, u16>,
+    pub voicevox_styles: DashMap<GuildId, u16>,
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -30,7 +30,8 @@ async fn main() -> Result<(), Error> {
     let runtime = std::env::var("VOICEVOX_ONNXRUNTIME")
         .expect("Missing VOICEVOX_ONNXRUNTIME");
 
-    let mut api = VoicevoxApi::new(dictionary, runtime)
+    let api = VoicevoxApi::new(&dictionary, &runtime)
+        .expect("Failed to initialize VoicevoxApi");
 
     let intents = serenity::GatewayIntents::non_privileged()
         | serenity::GatewayIntents::GUILD_VOICE_STATES;
@@ -48,8 +49,13 @@ async fn main() -> Result<(), Error> {
                     ctx,
                     &framework.options().commands
                 ).await?;
+                let styles: DashMap<serenity::GuildId, u16> = ctx.cache.guilds()
+                    .into_iter()
+                    .map(|id| (id, 3_u16))
+                    .collect();
                 Ok(Data {
                     voicevox_api: api,
+                    voicevox_styles: styles,
                 })
             })
         })
