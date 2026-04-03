@@ -14,7 +14,7 @@ serenity = { version = "0.12", default-features = false, features = [
 ] }
 poise = "0.6.1"
 dotenv = "0.15.0"
-songbird = { git = "https://github.com/beerpsi-forks/songbird", branch = "current", features = ["receive", "builtin-queue"] }
+songbird = { git = "https://github.com/serenity-rs/songbird", branch = "next", features = ["receive", "builtin-queue"] }
 reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls"] }
 symphonia = { version = "0.5", features = ["aac", "mp3", "isomp4", "ogg", "vorbis", "flac", "wav", "mkv"] }
 serde = { version = "1", features = ["derive"] }

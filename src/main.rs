@@ -3,6 +3,7 @@ use songbird::SerenityInit;
 use serenity::model::id::GuildId;
 use dashmap::DashMap;
 use dotenv::dotenv;
+use std::sync::Arc;
 
 use voicevox_api::VoicevoxApi;
 
@@ -10,10 +11,10 @@ mod commands;
 mod services;
 mod events;
 use commands::voice;
+use crate::events::Handler;
 
 pub struct Data {
-    pub voicevox_api: VoicevoxApi,
-    pub voicevox_styles: DashMap<GuildId, u16>,
+    pub voicevox_styles: Arc<DashMap<GuildId, u16>>,
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -32,9 +33,13 @@ async fn main() -> Result<(), Error> {
 
     let api = VoicevoxApi::new(&dictionary, &runtime)
         .expect("Failed to initialize VoicevoxApi");
+    
+    let styles: Arc<DashMap<GuildId, u16>> = Arc::new(DashMap::new());
+    let styles_clone = styles.clone();
 
     let intents = serenity::GatewayIntents::non_privileged()
-        | serenity::GatewayIntents::GUILD_VOICE_STATES;
+        | serenity::GatewayIntents::GUILD_VOICE_STATES
+        | serenity::GatewayIntents::MESSAGE_CONTENT;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
@@ -43,19 +48,15 @@ async fn main() -> Result<(), Error> {
             ],
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(move |ctx, _ready, framework| {
+            let styles_for_setup = styles_clone.clone();
             Box::pin(async move {
                 poise::builtins::register_globally(
                     ctx,
                     &framework.options().commands
                 ).await?;
-                let styles: DashMap<serenity::GuildId, u16> = ctx.cache.guilds()
-                    .into_iter()
-                    .map(|id| (id, 3_u16))
-                    .collect();
                 Ok(Data {
-                    voicevox_api: api,
-                    voicevox_styles: styles,
+                    voicevox_styles: styles_for_setup,
                 })
             })
         })
@@ -64,6 +65,10 @@ async fn main() -> Result<(), Error> {
     let mut client = serenity::ClientBuilder::new(token, intents)
         .framework(framework)
         .register_songbird()
+        .event_handler(Handler {
+            voicevox_api: api.clone(),
+            voicevox_styles: styles.clone(),
+        })
         .await?;
 
     client.start().await?;

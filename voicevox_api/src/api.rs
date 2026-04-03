@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::Read;
@@ -237,9 +238,25 @@ impl VoicevoxApiInner {
 
     fn ensure_model_for_style(&mut self, style_id: u32) -> Result<(), core::VoicevoxError> {
         if self.style_to_model_path.get(&style_id).is_none() {
-            let default_dir = PathBuf::from("/workspaces/vvtest/voicevox_core/models/vvms");
-            if default_dir.exists() {
-                self.register_models_from_dir(default_dir.to_string_lossy().as_ref())?;
+            let mut candidate_dirs: Vec<PathBuf> = Vec::new();
+
+            if let Ok(dir) = env::var("VOICEVOX_MODEL_DIR") {
+                candidate_dirs.push(PathBuf::from(dir));
+            }
+
+            if let Ok(current_dir) = env::current_dir() {
+                candidate_dirs.push(current_dir.join("voicevox_core").join("models").join("vvms"));
+            }
+
+            candidate_dirs.push(PathBuf::from("/workspaces/JadeVoice/voicevox_core/models/vvms"));
+
+            for dir in candidate_dirs {
+                if dir.exists() {
+                    self.register_models_from_dir(dir.to_string_lossy().as_ref())?;
+                    if self.style_to_model_path.get(&style_id).is_some() {
+                        break;
+                    }
+                }
             }
         }
 

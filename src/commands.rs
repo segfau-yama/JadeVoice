@@ -1,10 +1,9 @@
 use crate::{Error, Context};
 use crate::services::{check_msg};
-use songbird::tracks::Track;
 
 #[poise::command(
     slash_command,
-    subcommands("read", "_join", "leave", "model"),
+    subcommands("join", "leave", "model"),
     guild_only
 )]
 pub async fn voice(_ctx: Context<'_>) -> Result<(), Error> {
@@ -13,7 +12,7 @@ pub async fn voice(_ctx: Context<'_>) -> Result<(), Error> {
 
 #[poise::command(slash_command, guild_only, rename = "join")]
 /// ボイスチャンネルに参加する。再生中の音声がある場合は続行する。
-pub async fn _join(
+pub async fn join(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
@@ -59,52 +58,6 @@ pub async fn leave(
 
     manager.remove(guild_id).await?;
     check_msg(ctx.say("ボイスチャンネルから退出しました").await);
-    Ok(())
-}
-
-#[poise::command(slash_command, guild_only)]
-/// 文章を読み上げる
-pub async fn read(
-    ctx: Context<'_>,
-    sentence: String,
-) -> Result<(), Error> {
-    ctx.defer().await?;
-
-    let guild_id = ctx.guild_id().unwrap();
-    let voicevox_api = ctx.data().voicevox_api.clone();
-    let style_id = ctx.data().voicevox_styles.get(&guild_id).map(|s| *s).unwrap_or(3_u16);
-
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .unwrap()
-        .clone();
-
-    let handler_lock = if let Some(existing) = manager.get(guild_id) {
-        existing
-    } else {
-        let channel_id = ctx
-            .guild()
-            .unwrap()
-            .voice_states
-            .get(&ctx.author().id)
-            .and_then(|vs| vs.channel_id)
-            .ok_or("先にボイスチャンネルに参加してください")?;
-        let joined = manager.join(guild_id, channel_id).await?;
-        crate::events::register(
-            &joined,
-            manager.clone(),
-            guild_id,
-            ctx.serenity_context().cache.clone(),
-        ).await;
-        joined
-    };
-
-    let mut handler = handler_lock.lock().await;
-
-    let src = voicevox_api.tts(&sentence as &str, style_id as u32).await.unwrap();
-    let input: songbird::input::Input = src.into();
-    let track = Track::new(input);
-    let _ = handler.enqueue(track).await;
     Ok(())
 }
 
