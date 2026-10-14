@@ -35,11 +35,52 @@ rustc --version
 
 ```
 voicevox_core/
+  additional_libraries/ # CUDA・cuDNN など（GPU 版のみ）
   c_api/lib/          # libvoicevox_core.so など
   dict/               # open_jtalk_dic_utf_8-x.xx/
   models/vvms/        # *.vvm 音声モデルファイル
-  onnxruntime/lib/    # libonnxruntime.so など
+  onnxruntime/lib/    # libvoicevox_onnxruntime.so など
 ```
+
+#### CUDA 版 ONNX Runtime の導入
+
+NVIDIA GPU を使う場合は、先にドライバーが認識されていることを確認します。CUDA Toolkit の別途インストールは不要です。
+
+```bash
+nvidia-smi
+```
+
+[VOICEVOX Core の公式リリース](https://github.com/VOICEVOX/voicevox_core/releases)から Linux x64 用ダウンローダーを取得し、プロジェクトルートへ `download-linux-x64` として配置します。新規導入では、Core・音声モデル・CUDA 版 ONNX Runtime をまとめてダウンロードできます。
+
+```bash
+chmod +x ./download-linux-x64
+./download-linux-x64 --devices cuda --output ./voicevox_core
+```
+
+CPU 版を導入済みの場合は、ONNX Runtime と追加ライブラリだけを CUDA 版へ置き換えます。
+
+```bash
+./download-linux-x64 \
+  --only onnxruntime additional-libraries \
+  --devices cuda \
+  --output ./voicevox_core
+```
+
+ダウンロードした CUDA ライブラリを実行時の検索対象へ追加してから起動します。
+
+```bash
+export LD_LIBRARY_PATH="$PWD/voicevox_core/c_api/lib:$PWD/voicevox_core/onnxruntime/lib:$PWD/voicevox_core/additional_libraries${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+./JadeVoice
+```
+
+次のログが表示されれば、CUDAが有効です。起動中のプロセスがある場合は、一度終了してから再起動してください。
+
+```text
+CUDA (device_id=0): OK
+CUDA (device_id=0)を利用します
+```
+
+Linux では `DirectML ... 利用できません` と表示されても問題ありません。`CPUを利用します` と表示される場合は、CPU 版 ONNX Runtime が残っていないか、`LD_LIBRARY_PATH` に `additional_libraries` が含まれているか確認してください。
 
 ---
 
@@ -50,7 +91,8 @@ voicevox_core/
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 VOICEVOX_DICTIONARY=voicevox_core/dict/open_jtalk_dic_utf_8-1.11
-VOICEVOX_ONNXRUNTIME=voicevox_core/onnxruntime/lib/libonnxruntime.so.1.17.3
+VOICEVOX_ONNXRUNTIME=voicevox_core/onnxruntime/lib/libvoicevox_onnxruntime.so.1.17.3
+VOICEVOX_MODEL_DIR=voicevox_core/models/vvms
 ```
 
 | 変数名 | 説明 |
@@ -58,6 +100,7 @@ VOICEVOX_ONNXRUNTIME=voicevox_core/onnxruntime/lib/libonnxruntime.so.1.17.3
 | `DISCORD_TOKEN` | Discord Developer Portal で取得した Bot トークン |
 | `VOICEVOX_DICTIONARY` | Open JTalk 辞書ディレクトリのパス |
 | `VOICEVOX_ONNXRUNTIME` | ONNX Runtime 共有ライブラリのパス |
+| `VOICEVOX_MODEL_DIR` | VOICEVOX 音声モデル（`.vvm`）ディレクトリのパス |
 
 ### Discord Bot の設定
 
