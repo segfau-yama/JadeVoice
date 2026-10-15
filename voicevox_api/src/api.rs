@@ -6,6 +6,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use alkana_rs::ALKANA;
 use crate::voicevox_core as core;
 use tokio::task;
 use zip::ZipArchive;
@@ -130,6 +131,7 @@ impl VoicevoxApi {
         let inner = Arc::clone(&self.inner);
         let text = text.to_owned();
         task::spawn_blocking(move || {
+            let text = english_to_katakana(&text);
             let mut guard = inner
                 .lock()
                 .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
@@ -331,4 +333,19 @@ impl Drop for VoicevoxApiInner {
             core::voicevox_open_jtalk_rc_delete(self.open_jtalk);
         }
     }
+}
+
+fn english_to_katakana(text: &str) -> String {
+    let mut converted = String::with_capacity(text.len());
+    for part in text.split_inclusive(|c: char| !c.is_ascii_alphabetic() && c != '\'' && c != '’') {
+        let word = part.trim_matches(|c: char| !c.is_ascii_alphabetic());
+        let prefix_len = part.len() - part.trim_start_matches(|c: char| !c.is_ascii_alphabetic()).len();
+        converted.push_str(&part[..prefix_len]);
+        if !word.is_empty() {
+            let kana = ALKANA.get_katakana(word);
+            converted.push_str(kana.as_deref().unwrap_or(word));
+        }
+        converted.push_str(&part[prefix_len + word.len()..]);
+    }
+    converted
 }
