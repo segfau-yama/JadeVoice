@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::env;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -50,9 +50,7 @@ impl VoicevoxApi {
             core::check_result(core::voicevox_onnxruntime_load_once(ort_opts, &mut onnxruntime))?;
 
             let mut open_jtalk: *mut core::OpenJtalkRc = std::ptr::null_mut();
-            if let Err(err) = core::check_result(core::voicevox_open_jtalk_rc_new(dict_dir.as_ptr(), &mut open_jtalk)) {
-                return Err(err);
-            }
+            core::check_result(core::voicevox_open_jtalk_rc_new(dict_dir.as_ptr(), &mut open_jtalk))?;
 
             let mut synthesizer: *mut core::VoicevoxSynthesizer = std::ptr::null_mut();
             let init_opts = core::voicevox_make_default_initialize_options();
@@ -123,19 +121,6 @@ impl VoicevoxApi {
                 .lock()
                 .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
             Ok(guard.is_model_loaded(&model_id))
-        })
-        .await
-        .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
-    }
-
-    #[allow(dead_code)]
-    pub async fn model_metas_json(&self, model_id: VoiceModelId) -> Result<String, core::VoicevoxError> {
-        let inner = Arc::clone(&self.inner);
-        task::spawn_blocking(move || {
-            let guard = inner
-                .lock()
-                .map_err(|_| core::VoicevoxError::from_message("voicevox api lock poisoned"))?;
-            guard.model_metas_json(&model_id)
         })
         .await
         .map_err(|e| core::VoicevoxError::from_message(format!("tts worker join error: {e}")))?
@@ -298,26 +283,6 @@ impl VoicevoxApiInner {
         // SAFETY: self.synthesizer is valid while self is alive; model_id points to 16-byte model ID.
         unsafe {
             core::voicevox_synthesizer_is_loaded_voice_model(self.synthesizer, model_id as *const VoiceModelId)
-        }
-    }
-
-    #[allow(dead_code)]
-    fn model_metas_json(&self, model_id: &VoiceModelId) -> Result<String, core::VoicevoxError> {
-        let loaded = self
-            .loaded_models
-            .iter()
-            .find(|loaded| &loaded.id == model_id)
-            .ok_or_else(|| core::VoicevoxError::from_message("model_id is not loaded"))?;
-
-        // SAFETY: loaded.model is valid while self is alive.
-        unsafe {
-            let metas_ptr = core::voicevox_voice_model_file_create_metas_json(loaded.model);
-            if metas_ptr.is_null() {
-                return Err(core::VoicevoxError::from_message("failed to get model metas"));
-            }
-            let metas = CStr::from_ptr(metas_ptr).to_string_lossy().into_owned();
-            core::voicevox_json_free(metas_ptr);
-            Ok(metas)
         }
     }
 

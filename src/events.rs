@@ -25,30 +25,18 @@ impl EventHandler for Handler {
             return;
         }
 
-        let guild_id = match msg.guild_id {
-            Some(id) => id,
-            None => return,
-        };
+        let Some(guild_id) = msg.guild_id else { return };
 
-        let manager = match songbird::get(&ctx).await {
-            Some(m) => m,
-            None => return,
-        };
+        let Some(manager) = songbird::get(&ctx).await else { return };
 
-        let handler_lock = match manager.get(guild_id) {
-            Some(h) => h,
-            None => return,
-        };
+        let Some(handler_lock) = manager.get(guild_id) else { return };
 
         let bot_channel_id = {
             let handler = handler_lock.lock().await;
             handler.current_channel()
         };
 
-        let bot_channel_id = match bot_channel_id {
-            Some(id) => id,
-            None => return,
-        };
+        let Some(bot_channel_id) = bot_channel_id else { return };
 
         if msg.channel_id.get() != bot_channel_id.0.get() {
             return;
@@ -111,23 +99,14 @@ impl VoiceEventHandler for VoiceHandler {
 
             // 同チャンネルの誰かが切断した ─ 人間がいなくなったら自動退出
             EventContext::ClientDisconnect(_) => {
-                let handler_lock = match self.manager.get(self.guild_id) {
-                    Some(h) => h,
-                    None => return None,
-                };
+                let Some(handler_lock) = self.manager.get(self.guild_id) else { return None };
                 let bot_channel_id = {
                     let handler = handler_lock.lock().await;
                     handler.current_channel()
                 };
-                let bot_channel_id = match bot_channel_id {
-                    Some(id) => id,
-                    None => return None,
-                };
+                let Some(bot_channel_id) = bot_channel_id else { return None };
                 let human_count = {
-                    let guild = match self.cache.guild(self.guild_id) {
-                        Some(g) => g,
-                        None => return None,
-                    };
+                    let Some(guild) = self.cache.guild(self.guild_id) else { return None };
                     guild
                         .voice_states
                         .values()

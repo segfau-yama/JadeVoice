@@ -135,8 +135,4 @@ unsafe extern "C" {
     pub fn voicevox_synthesizer_delete(synthesizer: *mut VoicevoxSynthesizer);
     pub fn voicevox_open_jtalk_rc_delete(open_jtalk: *mut OpenJtalkRc);
     pub fn voicevox_error_result_to_message(result_code: VoicevoxResultCode) -> *const c_char;
-    #[allow(dead_code)]
-    pub fn voicevox_voice_model_file_create_metas_json(model: *const VoicevoxVoiceModelFile) -> *mut c_char;
-    #[allow(dead_code)]
-    pub fn voicevox_json_free(json: *mut c_char);
 }
