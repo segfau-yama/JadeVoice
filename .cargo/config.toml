@@ -1,0 +1,29 @@
+[target.x86_64-unknown-linux-musl]
+linker = "x86_64-linux-musl-gcc"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "cc"
+rustflags = [
+    "-C", "target-cpu=cortex-a57",
+    # Enable with mold and GCC >= 12.1 (or set linker = "clang").
+    # "-C", "link-arg=-fuse-ld=mold",
+]
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-fuse-ld=mold",
+    "-C", "link-arg=-Wl,-rpath,$ORIGIN/../../voicevox_core/c_api/lib:$ORIGIN/voicevox_core/c_api/lib",
+    "-C", "link-arg=-Wl,-rpath,$ORIGIN/../../voicevox_core/onnxruntime/lib:$ORIGIN/voicevox_core/onnxruntime/lib",
+]
+
+[build]
+jobs = 2
+rustc-wrapper = ""
+
+# Jetson Nano: reduce build/link memory compared with release's fat LTO.
+[profile.jetson]
+inherits = "release"
+lto = "thin"
+codegen-units = 8
+strip = "debuginfo"
