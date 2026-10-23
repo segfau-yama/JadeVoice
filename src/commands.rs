@@ -62,8 +62,17 @@ pub async fn leave(
 }
 
 
-#[poise::command(slash_command, owners_only)]
-/// Voicevoxモデルを変更する
+async fn can_change_model(ctx: Context<'_>) -> Result<bool, Error> {
+    Ok(ctx.framework().options().owners.contains(&ctx.author().id)
+        || ctx
+            .author_member()
+            .await
+            .and_then(|member| member.permissions)
+            .is_some_and(|permissions| permissions.administrator()))
+}
+
+#[poise::command(slash_command, guild_only, check = "can_change_model")]
+/// Voicevoxモデルを変更する（Botオーナー・サーバー管理者のみ）
 pub async fn model(
     ctx: Context<'_>,
     style_id: u16,

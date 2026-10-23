@@ -15,7 +15,7 @@ serenity = { version = "0.12", default-features = false, features = [
 ] }
 poise = "0.6.1"
 dotenv = "0.15.0"
-songbird = { git = "https://github.com/serenity-rs/songbird", branch = "next", features = ["builtin-queue"] }
+songbird = { version = "0.6.1", features = ["builtin-queue"] }
 symphonia = { version = "0.5", default-features = false, features = ["pcm", "wav"] }
 voicevox_api = { path="voicevox_api" }
 dashmap = "6.1.0"
@@ -25,4 +25,3 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
-

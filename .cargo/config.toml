@@ -13,8 +13,8 @@ rustflags = [
 linker = "clang"
 rustflags = [
     "-C", "link-arg=-fuse-ld=mold",
-    "-C", "link-arg=-Wl,-rpath,/workspaces/JadeVoice/voicevox_core/c_api/lib",
-    "-C", "link-arg=-Wl,-rpath,/workspaces/JadeVoice/voicevox_core/onnxruntime/lib",
+    "-C", "link-arg=-Wl,-rpath,$ORIGIN/../../voicevox_core/c_api/lib:$ORIGIN/voicevox_core/c_api/lib",
+    "-C", "link-arg=-Wl,-rpath,$ORIGIN/../../voicevox_core/onnxruntime/lib:$ORIGIN/voicevox_core/onnxruntime/lib",
 ]
 
 [build]
